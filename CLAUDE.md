@@ -102,7 +102,7 @@ automatically (`onCreateCommand`). Then:
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 export FASTRTPS_DEFAULT_PROFILES_FILE=$PWD/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml
-./build/ctd_manager ctd_config.json
+./build/ctd_manager config/ctd_config.json
 ```
 Verified end-to-end against the real toolchain 2026-08-27 (not just reviewed):
 `fastddsgen` clean on the full `xl300-dds-v2` `idl/` tree, `xl300_dds_types` +

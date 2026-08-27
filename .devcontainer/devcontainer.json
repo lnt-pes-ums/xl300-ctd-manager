@@ -6,6 +6,16 @@
     "--network=host",
     "--name", "uuv-ctd-manager-dev"
   ],
+  // uuv_common/uuv_interfaces submodule URLs are POSIX paths (/workspace-dds/...),
+  // not the real Windows D:/... host paths -- git-on-Linux parses "D:/..." as an
+  // SSH host string and fails ("cannot run ssh") on any fresh clone/init. This
+  // mount makes /workspace-dds/... resolve to the actual sibling repos.
+  // INTERIM, this-machine-only fix: once xl300-dds-v2/uuv_common/uuv_interfaces
+  // are pushed to GitHub, switch every .gitmodules entry to the real https://
+  // URL and remove this mount -- see each repo's README.md "Provenance" section.
+  "mounts": [
+    "source=D:/Projects/LnT/XL300/workspace-dds,target=/workspace-dds,type=bind"
+  ],
   "onCreateCommand": "git submodule update --init --recursive",
   "postCreateCommand": "echo 'ctd-manager devcontainer ready: cmake -B build && cmake --build build'",
   "customizations": {

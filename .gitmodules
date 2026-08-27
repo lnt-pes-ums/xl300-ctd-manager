@@ -1,6 +1,6 @@
 [submodule "uuv_common"]
 	path = uuv_common
-	url = D:/Projects/LnT/XL300/workspace-dds/uuv_common
+	url = /workspace-dds/uuv_common
 [submodule "uuv_interfaces"]
 	path = uuv_interfaces
-	url = D:/Projects/LnT/XL300/workspace-dds/uuv_interfaces
+	url = /workspace-dds/uuv_interfaces

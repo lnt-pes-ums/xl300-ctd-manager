@@ -75,7 +75,7 @@ docker run --rm --network host xl300-ctd-manager:1.0.0
 ## Run
 ```bash
 export FASTRTPS_DEFAULT_PROFILES_FILE=$PWD/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml
-./build/ctd_manager ctd_config.json
+./build/ctd_manager config/ctd_config.json
 ```
 Edit `ctd_config.json`'s `sensor_config.transport[0]` for your actual CTD
 host/port. The shipped default binds a UDP server on `0.0.0.0:9095` (matching the
