@@ -62,7 +62,7 @@ endif()
 add_subdirectory(uuv_common)
 add_subdirectory(uuv_interfaces)
 
-set(CTD_MANAGER_LIB_SRCS Config.cpp CtdManager.cpp)
+set(CTD_MANAGER_LIB_SRCS Config.cpp CtdManager.cpp CtdApp.cpp)
 
 add_executable(ctd_manager main.cpp ${CTD_MANAGER_LIB_SRCS})
 target_include_directories(ctd_manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

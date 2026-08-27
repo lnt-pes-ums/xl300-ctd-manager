@@ -27,6 +27,15 @@ When building or migrating another manager, follow *this* repo's structure —
 `xl300-svp-manager`'s vendored-copy-of-3-files approach is what this replaced, not
 what to imitate.
 
+**Also the reference for `main()` shape (2026-08-28):** `main.cpp` is orchestration
+only (construct `CtdApp` → `initialize()` → `start()` → idle-wait on
+`ShutdownToken` → `stop()`) — every line of DDS setup and the entire publish loop
+that used to live in `main()` moved into `CtdApp`. `CtdManager::receiveLoop()` got
+the same treatment: a thin driver over four named steps operating on a
+`ReceiveState` struct, not one long loop body. Follow this shape, not a `main()`
+that does the actual work itself — see README.md's "Why main.cpp looks the way it
+does".
+
 ## DDS I/O (per `xl300-dds-v2/DDS_Topic_Contract.md` §5/§6)
 | Direction | Topic | Type | QoS | Partition |
 |---|---|---|---|---|
@@ -99,7 +108,7 @@ All transport/port/publish-rate/debug settings live in `ctd_config.json`.
 The real MQTT `ctd_manager` publishes three MQTT topics (`data`/`status`/
 `diagnostic`) with request/response and health-change-triggered publishing. This
 DDS port collapses that to the two DDS topics above, published periodically at
-their own `publish_interval_ms` (see `main.cpp`) — DDS's own QoS (durability,
+their own `publish_interval_ms` (see `CtdApp::publishLoop()`) — DDS's own QoS (durability,
 deadline) covers what the MQTT version's request/response and reconnect-triggered
 publishing existed to work around. No functional gap; different mechanism.
 

@@ -21,9 +21,15 @@ structural swap: DDS pub replaces MQTT pub, and the three MQTT topics
 (`data`/`status`/`diagnostic`) collapse into two DDS topics.
 
 ```
-main.cpp             DDS wiring only: publish sensors/ctd + health/<node>, at each
-                      topic's own publish_interval_ms, via uuv_common::DdsNode
-                      helpers. No subscriptions and no sd_notify.
+main.cpp             Orchestration only (2026-08-28): construct CtdApp ->
+                      initialize() -> start() -> idle-wait on ShutdownToken ->
+                      stop(). No DDS code, no publish logic -- ~35 lines, never
+                      needs touching to add a topic or change publish behavior.
+CtdApp.hpp/.cpp       Owns the DDS participant/topics/writers, the CtdManager
+                      instance, and the publish loop (its own background
+                      thread) -- everything main.cpp used to do directly.
+                      publishCtdSampleIfFresh()/publishHeartbeat() are separate
+                      named methods, not one long loop body.
 Config.hpp/.cpp       JSON config: debug, dds{} (domain/topics), sensor_config{}
                       (transport pool + device + input channel + optional commands
                       output channel). TransportConfig/ChannelTransportRef come
@@ -31,14 +37,17 @@ Config.hpp/.cpp       JSON config: debug, dds{} (domain/topics), sensor_config{}
 CtdParser.hpp         Real VALEPORT Bathy2 parser: one fixed 14-field caret-
                       delimited format, no checksum byte. App-specific -- not
                       shared (only two data points exist; see uuv_common/README.md).
-CtdManager.hpp/.cpp   Owns: transport pool, receive loop (parse + optional device
-                      startup/periodic commands), health computation.
+CtdManager.hpp/.cpp   Owns: transport pool, receive loop, health computation.
+                      receiveLoop() is a thin driver over four named steps
+                      (openTransportsIfNeeded/sendDueInitCommands/
+                      sendDuePeriodicCommands/receiveOneFrame) operating on a
+                      per-connection ReceiveState, not one long loop body.
 ctd_config.json       Default config: ctd_rx on udp_server:9095 (matches the real
                       manager's shipped default); commands channel present but
                       disabled (see TODO below).
 uuv_common/           Git submodule -- Logger, ITransport, TransportConfig,
-                      DdsNode (participant/writer/reader-with-fallback helpers).
-                      See uuv_common/README.md.
+                      DdsNode (participant/writer/reader-with-fallback helpers),
+                      ShutdownToken, SignalHandler. See uuv_common/README.md.
 uuv_interfaces/       Git submodule -- generated DDS type support for the FULL
                       xl300-dds-v2 contract (xl300_dds_types library), which
                       itself submodules xl300-dds-v2. See uuv_interfaces/README.md.
@@ -46,6 +55,16 @@ uuv_interfaces/       Git submodule -- generated DDS type support for the FULL
 
 See [CLAUDE.md](CLAUDE.md) for the DDS I/O table and the domain/partition/QoS
 values.
+
+## Why main.cpp looks the way it does
+`main()` is deliberately just construct → initialize → start → idle-wait →
+stop, with zero DDS code and zero publish logic of its own — everything else
+lives in `CtdApp`. This isn't a style preference: a `main()` that does the
+actual work directly (as this repo's `main.cpp` did until 2026-08-28) means
+every new topic or publish-cadence change touches the one file nothing else
+can be tested without. Follow this shape for any new manager, and see
+`CtdManager.hpp`'s `ReceiveState` for the same principle applied to a
+receive loop: named steps over shared state, not one long loop body.
 
 ## Build
 ```bash
