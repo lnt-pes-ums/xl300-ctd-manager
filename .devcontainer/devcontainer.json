@@ -1,0 +1,27 @@
+{
+  "name": "uuv-ctd-manager",
+  "image": "umeshwalkar/xl300-dev-base:0.1.0",
+  "runArgs": [
+    // DDS multicast discovery needs host networking to behave like a real node.
+    "--network=host",
+    "--name", "uuv-ctd-manager-dev"
+  ],
+  "onCreateCommand": "git submodule update --init --recursive",
+  "postCreateCommand": "echo 'ctd-manager devcontainer ready: cmake -B build && cmake --build build'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "anthropic.claude-code"
+      ],
+      "settings": {
+        "cmake.configureOnOpen": true
+      }
+    }
+  },
+  "remoteEnv": {
+    "FASTRTPS_DEFAULT_PROFILES_FILE": "${containerWorkspaceFolder}/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml"
+  }
+}

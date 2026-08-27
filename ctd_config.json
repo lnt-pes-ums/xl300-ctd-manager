@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "sensor": "ctd-valeport-bathy2",
+  "debug": { "enabled": true, "level": "debug" },
+
+  "dds": {
+    "enabled": true,
+    "domain_id": 10,
+    "profile_file": "uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml",
+    "topics": {
+      "pub": [
+        { "name": "sensors_ctd", "topic": "sensors/ctd", "debug": true,  "publish_interval_ms": 1000 },
+        { "name": "health",      "topic": "health/<node>", "debug": false, "publish_interval_ms": 1000 }
+      ]
+    }
+  },
+
+  "sensor_config": {
+    "transport": [
+      {
+        "id": "ch1", "enabled": true, "type": "udp_server",
+        "bind_host": "0.0.0.0", "bind_port": 9095,
+        "connect_timeout_ms": 5000, "reconnect_delay_ms": 3000,
+        "read_timeout_ms": 1000, "write_timeout_ms": 1000, "buffer_size_bytes": 128
+      }
+    ],
+    "devices": [
+      {
+        "id": 1, "name": "ctd_device", "enabled": true,
+        "publish_enabled": true, "publish_raw_data": false, "publish_stale_data": false,
+        "validate_checksum": true,
+
+        "input_channels": {
+          "ctd_rx": {
+            "enabled": true, "debug": true, "data_timeout_ms": 2000,
+            "transport": { "id": "ch1" }
+          }
+        },
+
+        "output_channels": {
+          "commands": {
+            "debug": false,
+            "inter_command_delay_ms": 200,
+            "app_start_timeout_ms": 3000,
+            "transport": { "id": "ch1" },
+            "init_commands": {
+              "enabled": false,
+              "send_on_reconnect": false,
+              "commands": []
+            },
+            "periodic_commands": {
+              "enabled": false,
+              "commands": []
+            }
+          }
+        }
+      }
+    ]
+  }
+}
