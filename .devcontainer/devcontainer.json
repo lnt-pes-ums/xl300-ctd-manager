@@ -13,8 +13,14 @@
   // INTERIM, this-machine-only fix: once xl300-dds-v2/uuv_common/uuv_interfaces
   // are pushed to GitHub, switch every .gitmodules entry to the real https://
   // URL and remove this mount -- see each repo's README.md "Provenance" section.
+  // "uuv-ccache" is a NAMED volume (not a bind mount), shared across every XL300
+  // manager's devcontainer that uses the same volume name -- one warm cache
+  // instead of a cold one per repo/rebuild. CCACHE_DIR pins the location
+  // explicitly rather than relying on ccache's version-dependent default
+  // (~/.cache/ccache on modern ccache, ~/.ccache on older).
   "mounts": [
-    "source=D:/Projects/LnT/XL300/workspace-dds,target=/workspace-dds,type=bind"
+    "source=D:/Projects/LnT/XL300/workspace-dds,target=/workspace-dds,type=bind",
+    "source=uuv-ccache,target=/root/.cache/ccache,type=volume"
   ],
   // protocol.file.allow: modern git blocks local 'file' transport for NESTED
   // submodule clones by default (hardening against a malicious repo using a
@@ -38,6 +44,7 @@
     }
   },
   "remoteEnv": {
-    "FASTRTPS_DEFAULT_PROFILES_FILE": "${containerWorkspaceFolder}/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml"
+    "FASTRTPS_DEFAULT_PROFILES_FILE": "${containerWorkspaceFolder}/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml",
+    "CCACHE_DIR": "/root/.cache/ccache"
   }
 }

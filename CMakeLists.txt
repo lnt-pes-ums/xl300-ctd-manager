@@ -7,6 +7,17 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# ccache -- optional, no-op if not installed (older dev-base images predate it).
+# Set before add_subdirectory() so it also covers uuv_common/uuv_interfaces'
+# targets, not just this project's own. See xl300-dev-base/Dockerfile for where
+# it's installed and each devcontainer.json for the shared "uuv-ccache" volume
+# that makes the cache persist (and share) across container rebuilds/repos.
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+  set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
 # Fast DDS package name differs by version line: the ENTIRE 2.x line's CMake project is
 # literally named 'fastrtps' (umeshwalkar/xl300-dev-base:0.1.0 pins Fast-DDS 2.14.x LTS).
 # Resolved here (not inside uuv_common/uuv_interfaces) so both subdirectories can just
