@@ -16,7 +16,13 @@
   "mounts": [
     "source=D:/Projects/LnT/XL300/workspace-dds,target=/workspace-dds,type=bind"
   ],
-  "onCreateCommand": "git submodule update --init --recursive",
+  // protocol.file.allow: modern git blocks local 'file' transport for NESTED
+  // submodule clones by default (hardening against a malicious repo using a
+  // local-path submodule to read arbitrary host files) -- our own submodules are
+  // trusted local paths, not a third party's, so this is safe here. Without it,
+  // `git submodule update --init --recursive` fails with "transport 'file' not
+  // allowed" on a genuinely fresh clone, confirmed 2026-08-27.
+  "onCreateCommand": "git config --global protocol.file.allow always && git submodule update --init --recursive",
   "postCreateCommand": "echo 'ctd-manager devcontainer ready: cmake -B build && cmake --build build'",
   "customizations": {
     "vscode": {
