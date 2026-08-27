@@ -40,8 +40,14 @@ either way, so the published double is correct regardless of the comment — see
 `CLAUDE.md`'s "Unit-comment discrepancy" note.
 
 ### Publish conditions
-`sensors/ctd` is published every `publish_interval_ms` (default 1000ms, config:
-`dds.topics.pub[name="sensors_ctd"]`), and only when:
+With the shipped default `devices[0].publish_on_data_rx: true` (matching the
+real MQTT manager's own shipped default), `sensors/ctd` is published
+immediately after every successfully parsed frame — at the device's own rate
+(4Hz per its init commands) — and `dds.topics.pub[name="sensors_ctd"].publish_interval_ms`
+is ignored entirely. Set `publish_on_data_rx: false` to fall back to a fixed
+`publish_interval_ms` timer instead (default 1000ms).
+
+Either way, a sample is only actually written when:
 - `sensor_config.devices[0].publish_enabled` is `true`, and
 - a valid frame has been received at least once, and
 - (unless `devices[0].publish_stale_data` is `true`) the latest reading is younger
