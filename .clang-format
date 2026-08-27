@@ -1,0 +1,23 @@
+---
+# Pins the style VS Code's C/C++ extension (cpptools) already applies by
+# default when no .clang-format is present -- this file exists so that style
+# is an explicit, versioned standard instead of "whatever cpptools' bundled
+# default happens to be", and so `clang-format` on the CLI (provided by
+# umeshwalkar/xl300-dev-base:0.1.0) produces the same result as an editor's
+# format-on-save. Reverse-engineered from main.cpp after cpptools reformatted
+# it 2026-08-27 -- if you find a mismatch, fix this file to match the editor,
+# don't hand-diverge from what VS Code actually does.
+BasedOnStyle: Microsoft
+IndentWidth: 4
+ColumnLimit: 120
+PointerAlignment: Right
+ReferenceAlignment: Right
+BreakBeforeBraces: Allman
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: All
+AllowShortLambdasOnASingleLine: Empty
+IndentCaseLabels: true
+SpaceBeforeParens: ControlStatements
+NamespaceIndentation: None
+SortIncludes: Never

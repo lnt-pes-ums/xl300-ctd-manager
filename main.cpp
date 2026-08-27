@@ -37,10 +37,10 @@
 #include "CtdManager.hpp"
 #include "Logger.hpp"
 #include "DdsNode.hpp"
+#include "ShutdownToken.hpp"
+#include "SignalHandler.hpp"
 
-#include <atomic>
 #include <chrono>
-#include <csignal>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -48,43 +48,54 @@
 using namespace eprosima::fastdds::dds;
 using namespace std::chrono;
 
-static std::atomic<bool> g_run{true};
-static void on_sig(int) { g_run = false; }
-
 #define MOD "main"
 #define NODE_NAME "ctd_manager"
 
-static LogLevel parseLogLevel(const std::string& s) {
-    if (s == "error") return LogLevel::ERROR;
-    if (s == "warn")  return LogLevel::WARN;
-    if (s == "info")  return LogLevel::INFO;
+static LogLevel parseLogLevel(const std::string &s)
+{
+    if (s == "error")
+        return LogLevel::ERROR;
+    if (s == "warn")
+        return LogLevel::WARN;
+    if (s == "info")
+        return LogLevel::INFO;
     return LogLevel::DEBUG;
 }
 
 // Maps CtdManager::health()'s string vocabulary onto health.idl's HealthState.
 // CtdManager never returns "error" (see its computeDeviceHealth doc), so
 // HEALTH_ERROR is unreachable here — kept only for enum completeness.
-static xl300::HealthState toHealthState(const std::string& h) {
-    if (h == "ok")           return xl300::HEALTH_OK;
-    if (h == "degraded")     return xl300::HEALTH_DEGRADED;
-    if (h == "disabled")     return xl300::HEALTH_DISABLED;
-    if (h == "disconnected") return xl300::HEALTH_DISCONNECTED;
+static xl300::HealthState toHealthState(const std::string &h)
+{
+    if (h == "ok")
+        return xl300::HEALTH_OK;
+    if (h == "degraded")
+        return xl300::HEALTH_DEGRADED;
+    if (h == "disabled")
+        return xl300::HEALTH_DISABLED;
+    if (h == "disconnected")
+        return xl300::HEALTH_DISCONNECTED;
     return xl300::HEALTH_ERROR;
 }
 
-int main(int argc, char** argv) {
-    std::signal(SIGINT, on_sig);
-    std::signal(SIGTERM, on_sig);
+int main(int argc, char **argv)
+{
+    ShutdownToken shutdown;
+    SignalHandler::initialize(shutdown);
 
     Logger::init();
-    if (argc < 2) {
+    if (argc < 2)
+    {
         std::cerr << "usage: ctd_manager <ctd_config.json>\n";
         return 1;
     }
     AppConfig cfg;
-    try {
+    try
+    {
         cfg = AppConfig::fromFile(argv[1]);
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "FATAL: " << e.what() << "\n";
         return 1;
     }
@@ -100,84 +111,97 @@ int main(int argc, char** argv) {
     // with no error at all.
     using namespace xl300::contract;
 
-    std::cout << "[ctd_manager] config=" << argv[1] << " sensor=" << cfg.sensor
-              << " domain=" << kDomainId
+    std::cout << "[ctd_manager] config=" << argv[1] << " sensor=" << cfg.sensor << " domain=" << kDomainId
               << " transports=" << cfg.sensor_config.transports.size()
               << " devices=" << cfg.sensor_config.devices.size() << "\n";
 
-    auto* dpf = DomainParticipantFactory::get_instance();
+    auto *dpf = DomainParticipantFactory::get_instance();
     // "xl300_domain10" matches uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml's
     // participant profile. uuv_common::createParticipant() falls back to a plain
     // domain-id participant if the profiles file isn't loaded (e.g. dev run
     // without FASTRTPS_DEFAULT_PROFILES_FILE set).
-    DomainParticipant* dp = uuv_common::createParticipant("xl300_domain10", kDomainId);
-    if (!dp) { std::cerr << "FATAL: no participant\n"; return 1; }
+    DomainParticipant *dp = uuv_common::createParticipant("xl300_domain10", kDomainId);
+    if (!dp)
+    {
+        std::cerr << "FATAL: no participant\n";
+        return 1;
+    }
 
-    TypeSupport t_ctd(new xl300::CtdSamplePubSubType()); t_ctd.register_type(dp);
-    TypeSupport t_hb(new xl300::HeartbeatPubSubType());  t_hb.register_type(dp);
+    TypeSupport t_ctd(new xl300::CtdSamplePubSubType());
+    t_ctd.register_type(dp);
+    TypeSupport t_hb(new xl300::HeartbeatPubSubType());
+    t_hb.register_type(dp);
 
     // ctd_config.json's dds.topics{} (looked up by "name") only ever supplies
     // publish_interval_ms/debug for these two -- never the topic/QoS/partition
     // facts themselves.
-    const DdsTopicConfig* ctd_topic_cfg = cfg.dds.find("sensors_ctd");
-    const DdsTopicConfig* hb_topic_cfg  = cfg.dds.find("health");
+    const DdsTopicConfig *ctd_topic_cfg = cfg.dds.find("sensors_ctd");
+    const DdsTopicConfig *hb_topic_cfg = cfg.dds.find("health");
 
     // A dds.topics.pub[] entry whose "name" doesn't match either known key is
     // silently ignored otherwise (find() returns nullptr, caller falls back to
     // defaults) -- warn so a typo/rename in the JSON doesn't go unnoticed.
-    for (const auto& t : cfg.dds.pub_topics)
+    for (const auto &t : cfg.dds.pub_topics)
         if (t.name != "sensors_ctd" && t.name != "health")
-            LOG_WRN(MOD, "dds.topics.pub[] entry with unrecognized name '%s' ignored "
-                         "(expected 'sensors_ctd' or 'health')", t.name.c_str());
-    if (!ctd_topic_cfg) LOG_WRN(MOD, "no dds.topics.pub[] entry named 'sensors_ctd' -- using defaults");
-    if (!hb_topic_cfg)  LOG_WRN(MOD, "no dds.topics.pub[] entry named 'health' -- using defaults");
+            LOG_WRN(MOD,
+                    "dds.topics.pub[] entry with unrecognized name '%s' ignored "
+                    "(expected 'sensors_ctd' or 'health')",
+                    t.name.c_str());
+    if (!ctd_topic_cfg)
+        LOG_WRN(MOD, "no dds.topics.pub[] entry named 'sensors_ctd' -- using defaults");
+    if (!hb_topic_cfg)
+        LOG_WRN(MOD, "no dds.topics.pub[] entry named 'health' -- using defaults");
 
-    Topic* tp_ctd = dp->create_topic(topics::kSensorsCtd.topic, t_ctd.get_type_name(), TOPIC_QOS_DEFAULT);
-    Topic* tp_hb  = dp->create_topic(topics::kHealth.topic,     t_hb.get_type_name(),  TOPIC_QOS_DEFAULT);
+    Topic *tp_ctd = dp->create_topic(topics::kSensorsCtd.topic, t_ctd.get_type_name(), TOPIC_QOS_DEFAULT);
+    Topic *tp_hb = dp->create_topic(topics::kHealth.topic, t_hb.get_type_name(), TOPIC_QOS_DEFAULT);
 
     PublisherQos pq_mission = PUBLISHER_QOS_DEFAULT;
     pq_mission.partition().push_back(topics::kSensorsCtd.partition);
-    Publisher* pub_mission = dp->create_publisher(pq_mission);       // sensors/ctd
+    Publisher *pub_mission = dp->create_publisher(pq_mission); // sensors/ctd
     PublisherQos pq_diag = PUBLISHER_QOS_DEFAULT;
     pq_diag.partition().push_back(topics::kHealth.partition);
-    Publisher* pub_diag = dp->create_publisher(pq_diag);             // health/<node>
+    Publisher *pub_diag = dp->create_publisher(pq_diag); // health/<node>
 
-    DataWriter* w_ctd = uuv_common::createWriter(pub_mission, tp_ctd, topics::kSensorsCtd.qos_profile);
-    DataWriter* w_hb  = uuv_common::createWriter(pub_diag,    tp_hb,  topics::kHealth.qos_profile);
+    DataWriter *w_ctd = uuv_common::createWriter(pub_mission, tp_ctd, topics::kSensorsCtd.qos_profile);
+    DataWriter *w_hb = uuv_common::createWriter(pub_diag, tp_hb, topics::kHealth.qos_profile);
 
     CtdManager ctd_mgr(cfg);
     ctd_mgr.start();
 
-    const auto& devices = cfg.sensor_config.devices;
-    const bool  publish_on_data_rx = !devices.empty() && devices[0].publish_on_data_rx;
+    const auto &devices = cfg.sensor_config.devices;
+    const bool publish_on_data_rx = !devices.empty() && devices[0].publish_on_data_rx;
 
-    int ctd_interval_ms = ctd_topic_cfg && ctd_topic_cfg->publish_interval_ms > 0 ? ctd_topic_cfg->publish_interval_ms : 1000;
-    int hb_interval_ms  = hb_topic_cfg  && hb_topic_cfg->publish_interval_ms  > 0 ? hb_topic_cfg->publish_interval_ms  : 1000;
+    int ctd_interval_ms =
+        ctd_topic_cfg && ctd_topic_cfg->publish_interval_ms > 0 ? ctd_topic_cfg->publish_interval_ms : 1000;
+    int hb_interval_ms =
+        hb_topic_cfg && hb_topic_cfg->publish_interval_ms > 0 ? hb_topic_cfg->publish_interval_ms : 1000;
     bool ctd_debug = ctd_topic_cfg && ctd_topic_cfg->debug;
-    bool hb_debug  = hb_topic_cfg  && hb_topic_cfg->debug;
+    bool hb_debug = hb_topic_cfg && hb_topic_cfg->debug;
 
     auto last_ctd = steady_clock::now() - hours(1);
-    auto last_hb  = steady_clock::now() - hours(1);
+    auto last_hb = steady_clock::now() - hours(1);
     uint64_t last_published_pkt_rx = 0;
 
     // Publishes the current snapshot if the device allows it and the data isn't
     // stale -- the one formatter shared by both the timer-driven path and the
     // publish_on_data_rx path below, so they can never drift apart.
-    auto publishCtdSampleIfFresh = [&](const CtdSnapshot& snap) {
+    auto publishCtdSampleIfFresh = [&](const CtdSnapshot &snap)
+    {
         bool device_publishes = !devices.empty() && devices[0].publish_enabled;
-        if (!snap.is_valid || !device_publishes) return;
+        if (!snap.is_valid || !device_publishes)
+            return;
         bool stale = false;
-        if (!devices[0].publish_stale_data) {
+        if (!devices[0].publish_stale_data)
+        {
             auto rxIt = devices[0].input_channels.find("ctd_rx");
-            int timeout_ms = rxIt != devices[0].input_channels.end()
-                                 ? rxIt->second.data_timeout_ms : 2000;
-            auto age_ms = duration_cast<milliseconds>(
-                              system_clock::now() - snap.timestamp).count();
+            int timeout_ms = rxIt != devices[0].input_channels.end() ? rxIt->second.data_timeout_ms : 2000;
+            auto age_ms = duration_cast<milliseconds>(system_clock::now() - snap.timestamp).count();
             stale = age_ms >= timeout_ms;
         }
-        if (stale) return;
+        if (stale)
+            return;
 
-        const CtdData& d = snap.data;
+        const CtdData &d = snap.data;
         xl300::CtdSample s{};
         s.header().ts(uuv_common::epochMs(system_clock::now()));
         s.header().data_ts(uuv_common::epochMs(snap.timestamp));
@@ -202,41 +226,46 @@ int main(int argc, char** argv) {
         s.pressure_baro(d.barometric_pressure);
         w_ctd->write(&s);
         if (ctd_debug)
-            LOG_DBG(MOD, "%s TX depth=%.2f temp=%.2f sal=%.2f",
-                    topics::kSensorsCtd.topic, s.depth(), s.water_temp(), s.salinity());
+            LOG_DBG(MOD, "%s TX depth=%.2f temp=%.2f sal=%.2f", topics::kSensorsCtd.topic, s.depth(), s.water_temp(),
+                    s.salinity());
     };
 
-    LOG_INF(MOD, "publish loop: %s @ %s, %s @ %dms",
-            topics::kSensorsCtd.topic,
+    LOG_INF(MOD, "publish loop: %s @ %s, %s @ %dms", topics::kSensorsCtd.topic,
             publish_on_data_rx ? "publish_on_data_rx (per frame)" : (std::to_string(ctd_interval_ms) + "ms").c_str(),
             topics::kHealth.topic, hb_interval_ms);
 
-    while (g_run) {
+    while (!shutdown.requested())
+    {
         auto now = steady_clock::now();
 
-        if (publish_on_data_rx) {
+        if (publish_on_data_rx)
+        {
             // publish_interval_ms is ignored entirely in this mode -- matches
             // the real MQTT ctd_manager's devices[].publish_on_data_rx exactly
             // (see Config.hpp's comment). Detected via CtdManager's cumulative
             // packet counter rather than a callback: main.cpp's loop already
             // polls at 20ms, well under the device's fastest configured rate.
             uint64_t pkt_rx = ctd_mgr.stats().pkt_rx;
-            if (pkt_rx != last_published_pkt_rx) {
+            if (pkt_rx != last_published_pkt_rx)
+            {
                 last_published_pkt_rx = pkt_rx;
                 publishCtdSampleIfFresh(ctd_mgr.latestSnapshot());
             }
-        } else if (now - last_ctd >= milliseconds(ctd_interval_ms)) {
+        }
+        else if (now - last_ctd >= milliseconds(ctd_interval_ms))
+        {
             last_ctd = now;
             publishCtdSampleIfFresh(ctd_mgr.latestSnapshot());
         }
 
-        if (now - last_hb >= milliseconds(hb_interval_ms)) {
+        if (now - last_hb >= milliseconds(hb_interval_ms))
+        {
             last_hb = now;
             CtdSnapshot snap = ctd_mgr.latestSnapshot();
             long data_age_ms = -1;
             if (snap.is_valid)
-                data_age_ms = static_cast<long>(duration_cast<milliseconds>(
-                    system_clock::now() - snap.timestamp).count());
+                data_age_ms =
+                    static_cast<long>(duration_cast<milliseconds>(system_clock::now() - snap.timestamp).count());
 
             xl300::Heartbeat hb{};
             hb.header().ts(uuv_common::epochMs(system_clock::now()));
@@ -250,8 +279,8 @@ int main(int argc, char** argv) {
             hb.data_age_ms(data_age_ms);
             w_hb->write(&hb);
             if (hb_debug)
-                LOG_DBG(MOD, "%s TX status=%d seq=%u age_ms=%ld",
-                        topics::kHealth.topic, (int)hb.status(), seq - 1, data_age_ms);
+                LOG_DBG(MOD, "%s TX status=%d seq=%u age_ms=%ld", topics::kHealth.topic, (int)hb.status(), seq - 1,
+                        data_age_ms);
         }
 
         std::this_thread::sleep_for(milliseconds(20));

@@ -13,17 +13,19 @@
 
 // ── Snapshot ──────────────────────────────────────────────────────────────────
 
-struct CtdSnapshot {
-    CtdData                                data;
-    std::chrono::system_clock::time_point  timestamp;
-    bool                                    is_valid = false;
+struct CtdSnapshot
+{
+    CtdData data;
+    std::chrono::system_clock::time_point timestamp;
+    bool is_valid = false;
 };
 
-struct CtdStats {
-    uint64_t pkt_rx      = 0;
-    uint64_t pkt_errors  = 0;
-    uint64_t cmd_sent    = 0;
-    uint64_t cmd_errors  = 0;
+struct CtdStats
+{
+    uint64_t pkt_rx = 0;
+    uint64_t pkt_errors = 0;
+    uint64_t cmd_sent = 0;
+    uint64_t cmd_errors = 0;
 };
 
 // ── CtdManager ────────────────────────────────────────────────────────────────
@@ -38,41 +40,42 @@ struct CtdStats {
 //
 // DDS pub plumbing stays in main.cpp (participant/topic/writers), same
 // separation of concerns as SvpManager -- this class has no DDS dependency.
-class CtdManager {
-public:
-    explicit CtdManager(const AppConfig& cfg);
+class CtdManager
+{
+  public:
+    explicit CtdManager(const AppConfig &cfg);
     ~CtdManager();
 
     void start();
     void stop();
 
     CtdSnapshot latestSnapshot();
-    bool        isConnected() const;
+    bool isConnected() const;
     // "ok" | "degraded" | "disconnected" | "disabled"
     std::string health() const;
-    CtdStats    stats();
+    CtdStats stats();
 
-private:
-    AppConfig              cfg_;
-    const DeviceConfig*    active_device_ = nullptr;
-    const TransportConfig* rx_tr_cfg_     = nullptr;
+  private:
+    AppConfig cfg_;
+    const DeviceConfig *active_device_ = nullptr;
+    const TransportConfig *rx_tr_cfg_ = nullptr;
 
     std::map<std::string, std::shared_ptr<ITransport>> transport_pool_;
     std::shared_ptr<ITransport> rx_transport_;
-    std::shared_ptr<ITransport> cmd_transport_;   // may alias rx_transport_
+    std::shared_ptr<ITransport> cmd_transport_; // may alias rx_transport_
 
     std::atomic<bool> running_{false};
-    std::thread       receive_thread_;
+    std::thread receive_thread_;
     std::chrono::steady_clock::time_point start_time_;
 
     std::condition_variable cv_;
-    mutable std::mutex      cv_mutex_;
+    mutable std::mutex cv_mutex_;
 
     mutable std::mutex snapshot_mutex_;
-    CtdSnapshot         latest_snapshot_;
-    CtdStats            stats_;
+    CtdSnapshot latest_snapshot_;
+    CtdStats stats_;
 
     void receiveLoop();
-    void sendCommand(ITransport* tx, const std::string& cmd, int inter_command_delay_ms);
-    void sendInitCommands(ITransport* tx, const DeviceConfig& dev);
+    void sendCommand(ITransport *tx, const std::string &cmd, int inter_command_delay_ms);
+    void sendInitCommands(ITransport *tx, const DeviceConfig &dev);
 };

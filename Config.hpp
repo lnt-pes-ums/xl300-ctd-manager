@@ -32,20 +32,22 @@ using json = nlohmann::json;
 // Debug / logging
 // ----------------------------------------------------------------------------
 
-struct DebugConfig {
-    bool        enabled = false;
-    std::string level   = "warn";   // error | warn | info | debug
+struct DebugConfig
+{
+    bool enabled = false;
+    std::string level = "warn"; // error | warn | info | debug
 };
 
 // ----------------------------------------------------------------------------
 // Input channel (device.input_channels.<name>).
 // ----------------------------------------------------------------------------
 
-struct InputChannelConfig {
-    bool                enabled         = true;
-    bool                debug           = false;
-    int                 data_timeout_ms = 2000;
-    std::string         format;
+struct InputChannelConfig
+{
+    bool enabled = true;
+    bool debug = false;
+    int data_timeout_ms = 2000;
+    std::string format;
     ChannelTransportRef transport;
 };
 
@@ -57,30 +59,34 @@ struct InputChannelConfig {
 // README.md's TODO if a real device turns out to need one.
 // ----------------------------------------------------------------------------
 
-struct PeriodicCommandConfig {
+struct PeriodicCommandConfig
+{
     std::string name;
     std::string command;
-    int         send_interval_ms = 1000;
-    bool        enabled          = true;
+    int send_interval_ms = 1000;
+    bool enabled = true;
 };
 
-struct InitCommandsConfig {
-    bool                     enabled           = true;
-    bool                     send_on_reconnect = false;
+struct InitCommandsConfig
+{
+    bool enabled = true;
+    bool send_on_reconnect = false;
     std::vector<std::string> commands;
 };
 
-struct PeriodicCommandsConfig {
-    bool                               enabled = false;
+struct PeriodicCommandsConfig
+{
+    bool enabled = false;
     std::vector<PeriodicCommandConfig> commands;
 };
 
-struct CommandChannelConfig {
-    bool                   debug                  = false;
-    int                    inter_command_delay_ms = 200;
-    int                    app_start_timeout_ms   = 0;
-    ChannelTransportRef    transport;
-    InitCommandsConfig     init_commands;
+struct CommandChannelConfig
+{
+    bool debug = false;
+    int inter_command_delay_ms = 200;
+    int app_start_timeout_ms = 0;
+    ChannelTransportRef transport;
+    InitCommandsConfig init_commands;
     PeriodicCommandsConfig periodic_commands;
 };
 
@@ -99,18 +105,23 @@ struct CommandChannelConfig {
 // "sensors_ctd" -> kSensorsCtd -- it is not itself the topic string.
 // ----------------------------------------------------------------------------
 
-struct DdsTopicConfig {
+struct DdsTopicConfig
+{
     std::string name;
-    bool        debug               = false;
-    int         publish_interval_ms = 1000;
+    bool debug = false;
+    int publish_interval_ms = 1000;
 };
 
-struct DdsConfig {
-    bool        enabled = true;
+struct DdsConfig
+{
+    bool enabled = true;
     std::vector<DdsTopicConfig> pub_topics;
 
-    const DdsTopicConfig* find(const std::string& name) const {
-        for (auto& t : pub_topics) if (t.name == name) return &t;
+    const DdsTopicConfig *find(const std::string &name) const
+    {
+        for (auto &t : pub_topics)
+            if (t.name == name)
+                return &t;
         return nullptr;
     }
 };
@@ -119,14 +130,15 @@ struct DdsConfig {
 // Device (sensor_config.devices[]).
 // ----------------------------------------------------------------------------
 
-struct DeviceConfig {
-    int         id                     = 1;
-    std::string name                   = "device";
-    bool        enabled                = true;
-    bool        publish_enabled        = true;
-    bool        publish_raw_data       = false;
-    bool        publish_stale_data     = false;
-    bool        validate_checksum      = true;   // no effect: Bathy2 frames carry no checksum byte
+struct DeviceConfig
+{
+    int id = 1;
+    std::string name = "device";
+    bool enabled = true;
+    bool publish_enabled = true;
+    bool publish_raw_data = false;
+    bool publish_stale_data = false;
+    bool validate_checksum = true; // no effect: Bathy2 frames carry no checksum byte
 
     // When true, sensors/ctd is published immediately after every successfully
     // parsed frame (at the sensor's own rate) instead of on a fixed timer, and
@@ -136,11 +148,11 @@ struct DeviceConfig {
     // Ported 2026-08-27 -- this DDS port had been missing it since the original
     // build, silently running at a fixed 1000ms cadence regardless of the
     // device's real (faster) output rate.
-    bool        publish_on_data_rx     = false;
+    bool publish_on_data_rx = false;
 
     std::map<std::string, InputChannelConfig> input_channels;
 
-    bool                 has_commands = false;
+    bool has_commands = false;
     CommandChannelConfig commands;
 };
 
@@ -148,12 +160,16 @@ struct DeviceConfig {
 // sensor_config — transports + devices.
 // ----------------------------------------------------------------------------
 
-struct SensorConfig {
+struct SensorConfig
+{
     std::vector<TransportConfig> transports;
-    std::vector<DeviceConfig>    devices;
+    std::vector<DeviceConfig> devices;
 
-    const TransportConfig* findTransport(const std::string& id) const {
-        for (auto& t : transports) if (t.id == id) return &t;
+    const TransportConfig *findTransport(const std::string &id) const
+    {
+        for (auto &t : transports)
+            if (t.id == id)
+                return &t;
         return nullptr;
     }
 };
@@ -162,13 +178,14 @@ struct SensorConfig {
 // Top-level application config.
 // ----------------------------------------------------------------------------
 
-struct AppConfig {
-    std::string  schema_version = "1.0";
-    std::string  sensor;
-    DebugConfig  debug;
-    DdsConfig    dds;
+struct AppConfig
+{
+    std::string schema_version = "1.0";
+    std::string sensor;
+    DebugConfig debug;
+    DdsConfig dds;
     SensorConfig sensor_config;
 
-    static AppConfig fromFile(const std::string& path);
-    static AppConfig fromJsonFile(const std::string& path);
+    static AppConfig fromFile(const std::string &path);
+    static AppConfig fromJsonFile(const std::string &path);
 };
