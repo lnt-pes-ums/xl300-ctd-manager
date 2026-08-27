@@ -96,10 +96,24 @@ actually connected and parsing valid frames.
 
 ## Config schema
 Same uniform sensor-manager schema as `xl300-svp-manager`/the MQTT original:
-`schema_version`, `sensor`, `debug`, `dds{domain_id, profile_file, topics.pub[]}`,
+`schema_version`, `sensor`, `debug`, `dds{topics.pub[]}`,
 `sensor_config{transport[], devices[]}`. See
 `workspace-mqtt/xl300-ctd-manager/README.md`'s "Configuration" section for the
 full field-by-field reference (same shapes; `mqtt.*` there maps to `dds.*` here).
+
+**Deliberately NOT here (2026-08-27):** `domain_id`, each topic's `topic` name
+string, and `profile_file` — these are contract facts that must be identical
+across every participant on the bus, not per-app config a JSON edit could
+silently get wrong. They come from `xl300::contract`
+(`uuv_interfaces/generated/contract_constants.hpp`, generated from
+`xl300-dds-v2`'s own `config/dds_domain.yaml` + `config/topic_registry.yaml`)
+instead. `dds.topics.pub[].name` is now purely a local lookup key correlating
+a JSON entry to a `contract_constants.hpp` topic (e.g. `"sensors_ctd"` ->
+`topics::kSensorsCtd`) for `publish_interval_ms`/`debug` — it is not itself a
+topic string. `profile_file` was also dead code before removal: the actual
+QoS profile file is loaded entirely via the `FASTRTPS_DEFAULT_PROFILES_FILE`
+env var (Fast-DDS reads that itself), never through anything this app's code
+touched.
 
 ## Submodule versioning
 `uuv_common` and `uuv_interfaces` are pinned to specific commits, not floating
@@ -123,8 +137,12 @@ git add uuv_common
 5. `#include "DdsNode.hpp"`, use `uuv_common::createParticipant/createWriter/
    createReader/epochMs` instead of reimplementing the profile-with-fallback
    pattern
-6. Point `FASTRTPS_DEFAULT_PROFILES_FILE`/`dds.profile_file` at
+6. Point `FASTRTPS_DEFAULT_PROFILES_FILE` at
    `uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml`
+7. `#include "contract_constants.hpp"`, use `xl300::contract::kDomainId` and
+   `xl300::contract::topics::k<YourTopic>.{topic,qos_profile,partition}`
+   instead of hardcoding or JSON-configuring domain id/topic strings/QoS
+   profile names/partition names
 
 ## TODO markers
 - **`init_commands.commands`** — left empty and disabled in `ctd_config.json`: the

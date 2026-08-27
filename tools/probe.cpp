@@ -25,6 +25,7 @@
 #include "healthPubSubTypes.h"
 #include "ctd.h"
 #include "ctdPubSubTypes.h"
+#include "contract_constants.hpp"
 #include "DdsNode.hpp"
 
 #include <atomic>
@@ -68,26 +69,28 @@ int main() {
   std::signal(SIGINT, on_sig);
   std::signal(SIGTERM, on_sig);
 
-  DomainParticipant* dp = uuv_common::createParticipant("xl300_domain10", 10);
+  using namespace xl300::contract;
+
+  DomainParticipant* dp = uuv_common::createParticipant("xl300_domain10", kDomainId);
   if (!dp) { std::cerr << "FATAL: no participant\n"; return 1; }
 
   TypeSupport t_hb(new xl300::HeartbeatPubSubType());   t_hb.register_type(dp);
   TypeSupport t_ctd(new xl300::CtdSamplePubSubType());  t_ctd.register_type(dp);
 
-  Topic* tp_hb  = dp->create_topic("health/<node>", t_hb.get_type_name(),  TOPIC_QOS_DEFAULT);
-  Topic* tp_ctd = dp->create_topic("sensors/ctd",   t_ctd.get_type_name(), TOPIC_QOS_DEFAULT);
+  Topic* tp_hb  = dp->create_topic(topics::kHealth.topic,     t_hb.get_type_name(),  TOPIC_QOS_DEFAULT);
+  Topic* tp_ctd = dp->create_topic(topics::kSensorsCtd.topic, t_ctd.get_type_name(), TOPIC_QOS_DEFAULT);
 
   // health/<node> is on the `diagnostics` partition, sensors/ctd on `mission` --
   // see main.cpp's pub_diag/pub_mission.
-  SubscriberQos sq_diag = SUBSCRIBER_QOS_DEFAULT; sq_diag.partition().push_back("diagnostics");
+  SubscriberQos sq_diag = SUBSCRIBER_QOS_DEFAULT; sq_diag.partition().push_back(topics::kHealth.partition);
   Subscriber* sub_diag = dp->create_subscriber(sq_diag);
-  SubscriberQos sq_mission = SUBSCRIBER_QOS_DEFAULT; sq_mission.partition().push_back("mission");
+  SubscriberQos sq_mission = SUBSCRIBER_QOS_DEFAULT; sq_mission.partition().push_back(topics::kSensorsCtd.partition);
   Subscriber* sub_mission = dp->create_subscriber(sq_mission);
 
-  auto hb_lis  = new PrintListener<xl300::Heartbeat>("health/<node>");
-  auto ctd_lis = new PrintListener<xl300::CtdSample>("sensors/ctd");
-  uuv_common::createReader(sub_diag,    tp_hb,  "HEALTH", hb_lis);
-  uuv_common::createReader(sub_mission, tp_ctd, "SENSOR", ctd_lis);
+  auto hb_lis  = new PrintListener<xl300::Heartbeat>(topics::kHealth.topic);
+  auto ctd_lis = new PrintListener<xl300::CtdSample>(topics::kSensorsCtd.topic);
+  uuv_common::createReader(sub_diag,    tp_hb,  topics::kHealth.qos_profile,     hb_lis);
+  uuv_common::createReader(sub_mission, tp_ctd, topics::kSensorsCtd.qos_profile, ctd_lis);
 
   std::cout << "[probe] listening: health/<node> (diagnostics, node=ctd_manager) + sensors/ctd (mission)\n"
             << "[probe] a heartbeat every ~1s proves ctd_manager's pub/sub works end-to-end\n"

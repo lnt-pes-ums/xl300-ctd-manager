@@ -5,12 +5,10 @@
 
   "dds": {
     "enabled": true,
-    "domain_id": 10,
-    "profile_file": "uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml",
     "topics": {
       "pub": [
-        { "name": "sensors_ctd", "topic": "sensors/ctd", "debug": true,  "publish_interval_ms": 1000 },
-        { "name": "health",      "topic": "health/<node>", "debug": false, "publish_interval_ms": 1000 }
+        { "name": "sensors_ctd", "debug": true,  "publish_interval_ms": 1000 },
+        { "name": "health",      "debug": false, "publish_interval_ms": 1000 }
       ]
     }
   },

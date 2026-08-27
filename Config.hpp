@@ -85,25 +85,28 @@ struct CommandChannelConfig {
 };
 
 // ----------------------------------------------------------------------------
-// DDS -- one pub topic per DDS_Topic_Contract entry this app owns (sensors/ctd,
-// health/<node>). No sub_topics (nothing subscribed) and no role/
-// ownership_strength/primary_deadline_ms (Tier-1-equivalent, k3s reschedules on
-// failure instead of active-standby failover) -- see xl300-dds-v2's
-// DDS_Topic_Contract.md §5/§6 (topic table) for domain_id/partition/QoS-profile
-// values; this struct only carries the per-app config, not the contract itself.
+// DDS -- per-topic settings this app is actually allowed to tune: debug
+// logging and publish cadence. Deliberately NOT here: domain id, topic name
+// strings, QoS profile names, partition names -- those are contract facts
+// that must be identical across every participant on the bus, not per-app
+// config. A typo'd topic string in a JSON file would silently desync this
+// app from everyone else's understanding of "sensors/ctd" with no error at
+// all -- see xl300::contract::topics::kSensorsCtd etc.
+// (uuv_interfaces/generated/contract_constants.hpp, generated from
+// xl300-dds-v2's config/dds_domain.yaml + config/topic_registry.yaml) for
+// where those now live instead. `name` here is purely a local lookup key
+// matching a contract_constants.hpp identifier's logical topic, e.g.
+// "sensors_ctd" -> kSensorsCtd -- it is not itself the topic string.
 // ----------------------------------------------------------------------------
 
 struct DdsTopicConfig {
     std::string name;
-    std::string topic;
     bool        debug               = false;
     int         publish_interval_ms = 1000;
 };
 
 struct DdsConfig {
-    bool        enabled      = true;
-    int         domain_id    = 10;   // xl300-dds-v2 config/dds_domain.yaml: domain_id 10
-    std::string profile_file = "uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml";
+    bool        enabled = true;
     std::vector<DdsTopicConfig> pub_topics;
 
     const DdsTopicConfig* find(const std::string& name) const {

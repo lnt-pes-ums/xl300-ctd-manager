@@ -1,14 +1,8 @@
 #include "Config.hpp"
 #include <fstream>
-#include <cstdlib>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
-
-static void applyDdsEnvOverrides(DdsConfig& dds) {
-    if (const char* v = std::getenv("XL300_DOMAIN_ID")) dds.domain_id = std::atoi(v);
-    if (const char* v = std::getenv("FASTRTPS_DEFAULT_PROFILES_FILE")) dds.profile_file = v;
-}
 
 static TransportConfig parseTransport(const json& t) {
     TransportConfig cfg;
@@ -41,7 +35,6 @@ static ChannelTransportRef parseTransportRef(const json& t) {
 static DdsTopicConfig parseDdsTopic(const json& t) {
     DdsTopicConfig cfg;
     cfg.name                = t.value("name",                cfg.name);
-    cfg.topic               = t.value("topic",               cfg.topic);
     cfg.debug               = t.value("debug",               cfg.debug);
     cfg.publish_interval_ms = t.value("publish_interval_ms", cfg.publish_interval_ms);
     if (cfg.publish_interval_ms > 0 && cfg.publish_interval_ms < LOWEST_PUBLISH_INT_MS)
@@ -121,9 +114,7 @@ static DeviceConfig parseDevice(const json& d) {
 }
 
 AppConfig AppConfig::fromFile(const std::string& path) {
-    AppConfig cfg = fromJsonFile(path);
-    applyDdsEnvOverrides(cfg.dds);
-    return cfg;
+    return fromJsonFile(path);
 }
 
 AppConfig AppConfig::fromJsonFile(const std::string& path) {
@@ -149,9 +140,7 @@ AppConfig AppConfig::fromJsonFile(const std::string& path) {
 
     if (config.contains("dds")) {
         auto& m = config["dds"];
-        cfg.dds.enabled      = m.value("enabled",      cfg.dds.enabled);
-        cfg.dds.domain_id    = m.value("domain_id",    cfg.dds.domain_id);
-        cfg.dds.profile_file = m.value("profile_file", cfg.dds.profile_file);
+        cfg.dds.enabled = m.value("enabled", cfg.dds.enabled);
 
         if (m.contains("topics") && m["topics"].contains("pub") && m["topics"]["pub"].is_array())
             for (auto& pt : m["topics"]["pub"]) cfg.dds.pub_topics.push_back(parseDdsTopic(pt));
