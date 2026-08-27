@@ -1,6 +1,6 @@
 [submodule "uuv_common"]
 	path = uuv_common
-	url = /workspace-dds/uuv_common
+	url = https://github.com/umeshwalkar/uuv_common.git
 [submodule "uuv_interfaces"]
 	path = uuv_interfaces
-	url = /workspace-dds/uuv_interfaces
+	url = https://github.com/umeshwalkar/uuv_interfaces.git
