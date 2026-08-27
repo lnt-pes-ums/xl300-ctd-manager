@@ -26,6 +26,7 @@
       {
         "id": 1, "name": "ctd_device", "enabled": true,
         "publish_enabled": true, "publish_raw_data": false, "publish_stale_data": false,
+        "publish_on_data_rx": true,
         "validate_checksum": true,
 
         "input_channels": {

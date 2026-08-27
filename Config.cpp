@@ -97,6 +97,7 @@ static DeviceConfig parseDevice(const json& d) {
     dev.publish_raw_data   = d.value("publish_raw_data",   dev.publish_raw_data);
     dev.publish_stale_data = d.value("publish_stale_data", dev.publish_stale_data);
     dev.validate_checksum  = d.value("validate_checksum",  dev.validate_checksum);
+    dev.publish_on_data_rx = d.value("publish_on_data_rx", dev.publish_on_data_rx);
 
     if (d.contains("input_channels") && d["input_channels"].is_object())
         for (auto& [ch_name, ch_j] : d["input_channels"].items())

@@ -42,6 +42,7 @@
 #include <chrono>
 #include <csignal>
 #include <iostream>
+#include <string>
 #include <thread>
 
 using namespace eprosima::fastdds::dds;
@@ -121,6 +122,16 @@ int main(int argc, char** argv) {
     const DdsTopicConfig* ctd_topic_cfg = cfg.dds.find("sensors_ctd");
     const DdsTopicConfig* hb_topic_cfg  = cfg.dds.find("health");
 
+    // A dds.topics.pub[] entry whose "name" doesn't match either known key is
+    // silently ignored otherwise (find() returns nullptr, caller falls back to
+    // defaults) -- warn so a typo/rename in the JSON doesn't go unnoticed.
+    for (const auto& t : cfg.dds.pub_topics)
+        if (t.name != "sensors_ctd" && t.name != "health")
+            LOG_WRN(MOD, "dds.topics.pub[] entry with unrecognized name '%s' ignored "
+                         "(expected 'sensors_ctd' or 'health')", t.name.c_str());
+    if (!ctd_topic_cfg) LOG_WRN(MOD, "no dds.topics.pub[] entry named 'sensors_ctd' -- using defaults");
+    if (!hb_topic_cfg)  LOG_WRN(MOD, "no dds.topics.pub[] entry named 'health' -- using defaults");
+
     Topic* tp_ctd = dp->create_topic(topics::kSensorsCtd.topic, t_ctd.get_type_name(), TOPIC_QOS_DEFAULT);
     Topic* tp_hb  = dp->create_topic(topics::kHealth.topic,     t_hb.get_type_name(),  TOPIC_QOS_DEFAULT);
 
@@ -137,6 +148,9 @@ int main(int argc, char** argv) {
     CtdManager ctd_mgr(cfg);
     ctd_mgr.start();
 
+    const auto& devices = cfg.sensor_config.devices;
+    const bool  publish_on_data_rx = !devices.empty() && devices[0].publish_on_data_rx;
+
     int ctd_interval_ms = ctd_topic_cfg && ctd_topic_cfg->publish_interval_ms > 0 ? ctd_topic_cfg->publish_interval_ms : 1000;
     int hb_interval_ms  = hb_topic_cfg  && hb_topic_cfg->publish_interval_ms  > 0 ? hb_topic_cfg->publish_interval_ms  : 1000;
     bool ctd_debug = ctd_topic_cfg && ctd_topic_cfg->debug;
@@ -144,58 +158,76 @@ int main(int argc, char** argv) {
 
     auto last_ctd = steady_clock::now() - hours(1);
     auto last_hb  = steady_clock::now() - hours(1);
+    uint64_t last_published_pkt_rx = 0;
 
-    LOG_INF(MOD, "publish loop: %s @ %dms, %s @ %dms",
-            topics::kSensorsCtd.topic, ctd_interval_ms, topics::kHealth.topic, hb_interval_ms);
+    // Publishes the current snapshot if the device allows it and the data isn't
+    // stale -- the one formatter shared by both the timer-driven path and the
+    // publish_on_data_rx path below, so they can never drift apart.
+    auto publishCtdSampleIfFresh = [&](const CtdSnapshot& snap) {
+        bool device_publishes = !devices.empty() && devices[0].publish_enabled;
+        if (!snap.is_valid || !device_publishes) return;
+        bool stale = false;
+        if (!devices[0].publish_stale_data) {
+            auto rxIt = devices[0].input_channels.find("ctd_rx");
+            int timeout_ms = rxIt != devices[0].input_channels.end()
+                                 ? rxIt->second.data_timeout_ms : 2000;
+            auto age_ms = duration_cast<milliseconds>(
+                              system_clock::now() - snap.timestamp).count();
+            stale = age_ms >= timeout_ms;
+        }
+        if (stale) return;
+
+        const CtdData& d = snap.data;
+        xl300::CtdSample s{};
+        s.header().ts(uuv_common::epochMs(system_clock::now()));
+        s.header().data_ts(uuv_common::epochMs(snap.timestamp));
+        s.header().sender(NODE_NAME);
+        s.header().schema_version(1);
+        s.device_id(static_cast<uint16_t>(devices[0].id));
+        s.device_name(devices[0].name);
+        s.valid(true);
+        s.date(d.date);
+        s.time(d.time);
+        s.conductivity(d.conductivity);
+        s.pressure(d.pressure_selected);
+        s.water_temp(d.water_temp);
+        s.altimeter_height(d.altimeter_height);
+        s.sound_vel(d.sound_velocity);
+        s.pressure_aux(d.aux_pressure);
+        s.depth(d.depth);
+        s.total_depth(d.total_depth);
+        s.point_density(d.point_density);
+        s.profile_density(d.profile_density);
+        s.salinity(d.salinity);
+        s.pressure_baro(d.barometric_pressure);
+        w_ctd->write(&s);
+        if (ctd_debug)
+            LOG_DBG(MOD, "%s TX depth=%.2f temp=%.2f sal=%.2f",
+                    topics::kSensorsCtd.topic, s.depth(), s.water_temp(), s.salinity());
+    };
+
+    LOG_INF(MOD, "publish loop: %s @ %s, %s @ %dms",
+            topics::kSensorsCtd.topic,
+            publish_on_data_rx ? "publish_on_data_rx (per frame)" : (std::to_string(ctd_interval_ms) + "ms").c_str(),
+            topics::kHealth.topic, hb_interval_ms);
 
     while (g_run) {
         auto now = steady_clock::now();
 
-        if (now - last_ctd >= milliseconds(ctd_interval_ms)) {
-            last_ctd = now;
-            CtdSnapshot snap = ctd_mgr.latestSnapshot();
-            const auto& devices = cfg.sensor_config.devices;
-            bool device_publishes = !devices.empty() && devices[0].publish_enabled;
-            if (snap.is_valid && device_publishes) {
-                bool stale = false;
-                if (!devices[0].publish_stale_data) {
-                    auto rxIt = devices[0].input_channels.find("ctd_rx");
-                    int timeout_ms = rxIt != devices[0].input_channels.end()
-                                         ? rxIt->second.data_timeout_ms : 2000;
-                    auto age_ms = duration_cast<milliseconds>(
-                                      system_clock::now() - snap.timestamp).count();
-                    stale = age_ms >= timeout_ms;
-                }
-                if (!stale) {
-                    const CtdData& d = snap.data;
-                    xl300::CtdSample s{};
-                    s.header().ts(uuv_common::epochMs(system_clock::now()));
-                    s.header().data_ts(uuv_common::epochMs(snap.timestamp));
-                    s.header().sender(NODE_NAME);
-                    s.header().schema_version(1);
-                    s.device_id(static_cast<uint16_t>(devices[0].id));
-                    s.device_name(devices[0].name);
-                    s.valid(true);
-                    s.date(d.date);
-                    s.time(d.time);
-                    s.conductivity(d.conductivity);
-                    s.pressure(d.pressure_selected);
-                    s.water_temp(d.water_temp);
-                    s.altimeter_height(d.altimeter_height);
-                    s.sound_vel(d.sound_velocity);
-                    s.pressure_aux(d.aux_pressure);
-                    s.depth(d.depth);
-                    s.total_depth(d.total_depth);
-                    s.point_density(d.point_density);
-                    s.profile_density(d.profile_density);
-                    s.salinity(d.salinity);
-                    s.pressure_baro(d.barometric_pressure);
-                    w_ctd->write(&s);
-                    if (ctd_debug)
-                        LOG_DBG(MOD, "%s TX depth=%.2f temp=%.2f sal=%.2f",
-                                topics::kSensorsCtd.topic, s.depth(), s.water_temp(), s.salinity());
-                }
+        if (publish_on_data_rx) {
+            // publish_interval_ms is ignored entirely in this mode -- matches
+            // the real MQTT ctd_manager's devices[].publish_on_data_rx exactly
+            // (see Config.hpp's comment). Detected via CtdManager's cumulative
+            // packet counter rather than a callback: main.cpp's loop already
+            // polls at 20ms, well under the device's fastest configured rate.
+            uint64_t pkt_rx = ctd_mgr.stats().pkt_rx;
+            if (pkt_rx != last_published_pkt_rx) {
+                last_published_pkt_rx = pkt_rx;
+                publishCtdSampleIfFresh(ctd_mgr.latestSnapshot());
             }
+        } else if (now - last_ctd >= milliseconds(ctd_interval_ms)) {
+            last_ctd = now;
+            publishCtdSampleIfFresh(ctd_mgr.latestSnapshot());
         }
 
         if (now - last_hb >= milliseconds(hb_interval_ms)) {

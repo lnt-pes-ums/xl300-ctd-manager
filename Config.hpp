@@ -128,6 +128,16 @@ struct DeviceConfig {
     bool        publish_stale_data     = false;
     bool        validate_checksum      = true;   // no effect: Bathy2 frames carry no checksum byte
 
+    // When true, sensors/ctd is published immediately after every successfully
+    // parsed frame (at the sensor's own rate) instead of on a fixed timer, and
+    // the matching DdsTopicConfig's publish_interval_ms is ignored entirely --
+    // same semantics as the real MQTT ctd_manager's devices[].publish_on_data_rx
+    // (shipped `true` there: workspace-mqtt/xl300-ctd-manager/config/ctd_config.json).
+    // Ported 2026-08-27 -- this DDS port had been missing it since the original
+    // build, silently running at a fixed 1000ms cadence regardless of the
+    // device's real (faster) output rate.
+    bool        publish_on_data_rx     = false;
+
     std::map<std::string, InputChannelConfig> input_channels;
 
     bool                 has_commands = false;
