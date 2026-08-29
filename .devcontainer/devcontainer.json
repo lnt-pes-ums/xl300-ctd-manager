@@ -7,19 +7,22 @@
     "--name", "uuv-ctd-manager-dev"
   ],
   // uuv_common/uuv_interfaces submodule URLs are POSIX paths (/workspace-dds/...),
-  // not the real Windows D:/... host paths -- git-on-Linux parses "D:/..." as an
-  // SSH host string and fails ("cannot run ssh") on any fresh clone/init. This
-  // mount makes /workspace-dds/... resolve to the actual sibling repos.
-  // INTERIM, this-machine-only fix: once xl300-dds-v2/uuv_common/uuv_interfaces
-  // are pushed to GitHub, switch every .gitmodules entry to the real https://
-  // URL and remove this mount -- see each repo's README.md "Provenance" section.
+  // not real host paths -- git-on-Linux parses "D:/..." as an SSH host string and
+  // fails ("cannot run ssh") on any fresh clone/init. This mount makes
+  // /workspace-dds/... resolve to the actual sibling repos. Uses
+  // ${localWorkspaceFolder}/.. (this repo's parent dir = workspace-dds) rather
+  // than a hardcoded absolute path, so it resolves correctly regardless of
+  // drive letter/username/clone location on whatever machine opens this.
+  // INTERIM fix: once xl300-dds-v2/uuv_common/uuv_interfaces are pushed to
+  // GitHub, switch every .gitmodules entry to the real https:// URL and remove
+  // this mount -- see each repo's README.md "Provenance" section.
   // "uuv-ccache" is a NAMED volume (not a bind mount), shared across every XL300
   // manager's devcontainer that uses the same volume name -- one warm cache
   // instead of a cold one per repo/rebuild. CCACHE_DIR pins the location
   // explicitly rather than relying on ccache's version-dependent default
   // (~/.cache/ccache on modern ccache, ~/.ccache on older).
   "mounts": [
-    "source=D:/Projects/LnT/XL300/workspace-dds,target=/workspace-dds,type=bind",
+    "source=${localWorkspaceFolder}/..,target=/workspace-dds,type=bind",
     "source=uuv-ccache,target=/root/.cache/ccache,type=volume"
   ],
   // protocol.file.allow: modern git blocks local 'file' transport for NESTED
