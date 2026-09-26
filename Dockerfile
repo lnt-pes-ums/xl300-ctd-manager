@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libtinyxml2-9 l
  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /opt/fastdds/install /opt/fastdds/install
 COPY --from=build /out/opt/xl300/bin/ctd_manager /opt/xl300/bin/ctd_manager
-COPY --from=build /work/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml /etc/xl300/xl300_profiles.xml
+COPY --from=build /work/deps/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml /etc/xl300/xl300_profiles.xml
 COPY --from=build /work/config/ctd_config.json /etc/xl300/ctd_config.json
 ENV LD_LIBRARY_PATH=/opt/fastdds/install/lib
 ENV FASTRTPS_DEFAULT_PROFILES_FILE=/etc/xl300/xl300_profiles.xml

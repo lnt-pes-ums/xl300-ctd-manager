@@ -1,6 +1,8 @@
 [submodule "uuv_common"]
-	path = uuv_common
+	path = deps/uuv_common
 	url = https://github.com/umeshwalkar/uuv_common.git
+	ignore = dirty
 [submodule "uuv_interfaces"]
-	path = uuv_interfaces
+	path = deps/uuv_interfaces
 	url = https://github.com/umeshwalkar/uuv_interfaces.git
+	ignore = dirty

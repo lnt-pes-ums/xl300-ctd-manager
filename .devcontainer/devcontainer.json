@@ -1,10 +1,10 @@
 {
-  "name": "uuv-ctd-manager",
-  "image": "umeshwalkar/xl300-dev-base:0.1.0",
+  "name": "xl300-ctd-manager",
+  "image": "ghcr.io/umeshwalkar/xl300-dev-base:0.1.0",
   "runArgs": [
     // DDS multicast discovery needs host networking to behave like a real node.
     "--network=host",
-    "--name", "uuv-ctd-manager-dev"
+    "--name", "xl300-ctd-manager-dev"
   ],
   // uuv_common/uuv_interfaces submodule URLs are POSIX paths (/workspace-dds/...),
   // not real host paths -- git-on-Linux parses "D:/..." as an SSH host string and
@@ -47,7 +47,7 @@
     }
   },
   "remoteEnv": {
-    "FASTRTPS_DEFAULT_PROFILES_FILE": "${containerWorkspaceFolder}/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml",
+    "FASTRTPS_DEFAULT_PROFILES_FILE": "${containerWorkspaceFolder}/deps/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml",
     "CCACHE_DIR": "/root/.cache/ccache"
   }
 }

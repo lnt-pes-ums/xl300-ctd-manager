@@ -8,8 +8,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ccache -- optional, no-op if not installed (older dev-base images predate it).
-# Set before add_subdirectory() so it also covers uuv_common/uuv_interfaces'
-# targets, not just this project's own. See xl300-dev-base/Dockerfile for where
+# Set before add_subdirectory() so it also covers deps/uuv_common and
+# deps/uuv_interfaces' targets, not just this project's own. See xl300-dev-base/Dockerfile for where
 # it's installed and each devcontainer.json for the shared "uuv-ccache" volume
 # that makes the cache persist (and share) across container rebuilds/repos.
 find_program(CCACHE_PROGRAM ccache)
@@ -20,7 +20,7 @@ endif()
 
 # Fast DDS package name differs by version line: the ENTIRE 2.x line's CMake project is
 # literally named 'fastrtps' (umeshwalkar/xl300-dev-base:0.1.0 pins Fast-DDS 2.14.x LTS).
-# Resolved here (not inside uuv_common/uuv_interfaces) so both subdirectories can just
+# Resolved here (not inside the deps/ submodules) so both subdirectories can just
 # reuse the target already in scope -- see their own CMakeLists.txt comments.
 find_package(fastdds QUIET CONFIG)
 if(fastdds_FOUND)
@@ -47,31 +47,33 @@ if(NOT nlohmann_json_FOUND)
   FetchContent_MakeAvailable(nlohmann_json)
 endif()
 
-# uuv_common (Logger/Transport/TransportConfig/DdsNode) and uuv_interfaces
+# deps/uuv_common (Logger/Transport/TransportConfig/DdsNode) and deps/uuv_interfaces
 # (xl300_dds_types -- generated code for the FULL xl300-dds-v2 contract) --
-# git submodules, not vendored copies. Run `git submodule update --init --recursive`
+# git submodules, not vendored copies. Both live under deps/ so `git status` stays
+# about this repo's own sources. Run `git submodule update --init --recursive`
 # first if either directory is empty.
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/uuv_common/CMakeLists.txt")
-  message(FATAL_ERROR "uuv_common/ is empty -- run: git submodule update --init --recursive")
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/uuv_common/CMakeLists.txt")
+  message(FATAL_ERROR "deps/uuv_common/ is empty -- run: git submodule update --init --recursive")
 endif()
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/uuv_interfaces/generated")
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/uuv_interfaces/generated")
   message(FATAL_ERROR
-    "uuv_interfaces/generated/ not found -- run: git submodule update --init --recursive\n"
+    "deps/uuv_interfaces/generated/ not found -- run: git submodule update --init --recursive\n"
     "(uuv_interfaces ships its generated code committed; this app does not run fastddsgen itself.)")
 endif()
-add_subdirectory(uuv_common)
-add_subdirectory(uuv_interfaces)
+add_subdirectory(deps/uuv_common)
+add_subdirectory(deps/uuv_interfaces)
 
-set(CTD_MANAGER_LIB_SRCS Config.cpp CtdManager.cpp CtdApp.cpp)
+set(CTD_MANAGER_LIB_SRCS src/Config.cpp src/CtdManager.cpp src/CtdApp.cpp)
 
-add_executable(ctd_manager main.cpp ${CTD_MANAGER_LIB_SRCS})
-target_include_directories(ctd_manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_executable(ctd_manager src/main.cpp ${CTD_MANAGER_LIB_SRCS})
+target_include_directories(ctd_manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(ctd_manager PRIVATE uuv_common xl300_dds_types nlohmann_json::nlohmann_json)
 
 install(TARGETS ctd_manager RUNTIME DESTINATION /opt/xl300/bin)
 
 # probe: standalone dev/debug subscriber (see tools/probe.cpp) to verify ctd_manager is
 # actually publishing over DDS. Not installed/shipped -- build-tree tool only.
+# It deliberately includes none of src/'s headers -- only uuv_common/uuv_interfaces
+# ones -- so it needs no include path of its own.
 add_executable(probe tools/probe.cpp)
-target_include_directories(probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(probe PRIVATE uuv_common xl300_dds_types)

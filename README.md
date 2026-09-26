@@ -9,9 +9,11 @@ it; there's no peer replica or aiding-write path to coordinate.
 
 **This is the reference app for the shared-repo pattern** (2026-08-27): the first
 manager migrated off vendored/copy-pasted shared code onto `uuv_common` +
-`uuv_interfaces` as git submodules. Future managers (`xl300-svp-manager`,
-`xl300-ins-manager`, and anything new) should follow this repo's structure, not
-`xl300-svp-manager`'s older vendored-copy one.
+`uuv_interfaces` as git submodules, both living under `deps/` (moved there
+2026-09-08 so `git status`/repo listings stay uncluttered by dependency
+checkouts). Future managers (`xl300-svp-manager`, `xl300-ins-manager`, and
+anything new) should follow this repo's structure, not `xl300-svp-manager`'s
+older vendored-copy one.
 
 **Config-driven, transport-abstracted design**, copied from the real, currently
 running MQTT prototype at
@@ -33,10 +35,10 @@ CtdApp.hpp/.cpp       Owns the DDS participant/topics/writers, the CtdManager
 Config.hpp/.cpp       JSON config: debug, dds{} (domain/topics), sensor_config{}
                       (transport pool + device + input channel + optional commands
                       output channel). TransportConfig/ChannelTransportRef come
-                      from uuv_common/TransportConfig.hpp, not defined here.
+                      from deps/uuv_common/TransportConfig.hpp, not defined here.
 CtdParser.hpp         Real VALEPORT Bathy2 parser: one fixed 14-field caret-
                       delimited format, no checksum byte. App-specific -- not
-                      shared (only two data points exist; see uuv_common/README.md).
+                      shared (only two data points exist; see deps/uuv_common/README.md).
 CtdManager.hpp/.cpp   Owns: transport pool, receive loop, health computation.
                       receiveLoop() is a thin driver over four named steps
                       (openTransportsIfNeeded/sendDueInitCommands/
@@ -45,12 +47,13 @@ CtdManager.hpp/.cpp   Owns: transport pool, receive loop, health computation.
 ctd_config.json       Default config: ctd_rx on udp_server:9095 (matches the real
                       manager's shipped default); commands channel present but
                       disabled (see TODO below).
-uuv_common/           Git submodule -- Logger, ITransport, TransportConfig,
+deps/
+  uuv_common/         Git submodule -- Logger, ITransport, TransportConfig,
                       DdsNode (participant/writer/reader-with-fallback helpers),
-                      ShutdownToken, SignalHandler. See uuv_common/README.md.
-uuv_interfaces/       Git submodule -- generated DDS type support for the FULL
+                      ShutdownToken, SignalHandler. See deps/uuv_common/README.md.
+  uuv_interfaces/     Git submodule -- generated DDS type support for the FULL
                       xl300-dds-v2 contract (xl300_dds_types library), which
-                      itself submodules xl300-dds-v2. See uuv_interfaces/README.md.
+                      itself submodules xl300-dds-v2. See deps/uuv_interfaces/README.md.
 ```
 
 See [CLAUDE.md](CLAUDE.md) for the DDS I/O table and the domain/partition/QoS
@@ -76,7 +79,7 @@ cmake --build build -j
 ```
 No `fastddsgen`/JDK needed here — `uuv_interfaces` ships its generated code
 committed. Requires Fast-DDS 2.14.x + `fastddsgen`'s runtime libs (for linking,
-not codegen) — provided by the `umeshwalkar/xl300-dev-base:0.1.0` image, built
+not codegen) — provided by the `ghcr.io/umeshwalkar/xl300-dev-base:0.1.0` image, built
 from `D:\Projects\LnT\XL300\workspace-dds\xl300-dev-base`. **Not** `uuv-dev-base`
 — that's built from `workspace-mqtt\xl300-dev-base` and only has MQTT deps
 (`libmosquitto`), no Fast-DDS at all. Also requires `nlohmann-json3-dev`
@@ -87,13 +90,13 @@ from `D:\Projects\LnT\XL300\workspace-dds\xl300-dev-base`. **Not** `uuv-dev-base
 git submodule update --init --recursive   # MUST run on the host first -- Docker's
                                             # build context is whatever's already
                                             # on disk, there's no in-container fetch
-docker build --build-arg DEV_BASE=umeshwalkar/xl300-dev-base:0.1.0 -t xl300-ctd-manager:1.0.0 .
+docker build --build-arg DEV_BASE=ghcr.io/umeshwalkar/xl300-dev-base:0.1.0 -t xl300-ctd-manager:1.0.0 .
 docker run --rm --network host xl300-ctd-manager:1.0.0
 ```
 
 ## Run
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=$PWD/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml
+export FASTRTPS_DEFAULT_PROFILES_FILE=$PWD/deps/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml
 ./build/ctd_manager config/ctd_config.json
 ```
 Edit `ctd_config.json`'s `sensor_config.transport[0]` for your actual CTD
@@ -124,7 +127,7 @@ full field-by-field reference (same shapes; `mqtt.*` there maps to `dds.*` here)
 string, and `profile_file` — these are contract facts that must be identical
 across every participant on the bus, not per-app config a JSON edit could
 silently get wrong. They come from `xl300::contract`
-(`uuv_interfaces/generated/contract_constants.hpp`, generated from
+(`deps/uuv_interfaces/generated/contract_constants.hpp`, generated from
 `xl300-dds-v2`'s own `config/dds_domain.yaml` + `config/topic_registry.yaml`)
 instead. `dds.topics.pub[].name` is now purely a local lookup key correlating
 a JSON entry to a `contract_constants.hpp` topic (e.g. `"sensors_ctd"` ->
@@ -141,23 +144,24 @@ either (or in `xl300-dds-v2` via `uuv_interfaces`), bump the pinned commit
 deliberately and rebuild/retest, the same discipline as any other dependency
 version bump:
 ```bash
-cd uuv_common && git checkout <new-commit-or-tag> && cd ..
-git add uuv_common
+cd deps/uuv_common && git checkout <new-commit-or-tag> && cd ../..
+git add deps/uuv_common
 ```
 
 ## Building this pattern into a new manager
-1. `git submodule add <uuv_common-url> uuv_common`
-2. `git submodule add <uuv_interfaces-url> uuv_interfaces` (brings `xl300-dds-v2`
-   along recursively)
+1. `git submodule add <uuv_common-url> deps/uuv_common`
+2. `git submodule add <uuv_interfaces-url> deps/uuv_interfaces` (brings
+   `xl300-dds-v2` along recursively)
 3. `#include "TransportConfig.hpp"` in your `Config.hpp` instead of redefining
    `TransportConfig`/`ChannelTransportRef`
-4. `add_subdirectory(uuv_common)` + `add_subdirectory(uuv_interfaces)` in
-   `CMakeLists.txt`; link `uuv_common` + `xl300_dds_types`
+4. `add_subdirectory(deps/uuv_common)` + `add_subdirectory(deps/uuv_interfaces)`
+   in `CMakeLists.txt`; link `uuv_common` + `xl300_dds_types` (target names,
+   unaffected by the path move)
 5. `#include "DdsNode.hpp"`, use `uuv_common::createParticipant/createWriter/
    createReader/epochMs` instead of reimplementing the profile-with-fallback
    pattern
 6. Point `FASTRTPS_DEFAULT_PROFILES_FILE` at
-   `uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml`
+   `deps/uuv_interfaces/xl300-dds-v2/qos/xl300_profiles.xml`
 7. `#include "contract_constants.hpp"`, use `xl300::contract::kDomainId` and
    `xl300::contract::topics::k<YourTopic>.{topic,qos_profile,partition}`
    instead of hardcoding or JSON-configuring domain id/topic strings/QoS
